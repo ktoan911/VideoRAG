@@ -6,9 +6,9 @@ import google.generativeai as genai
 def create_gemini_client(model_name="gemini-2.5-flash"):
     api_keys = [
         "AIzaSyDhrJoRR1ljtgtaRPmk8fcOBJH0WwJh2hU",
-        "AIzaSyBqiYdV3DJYCsYaZxqk3mbaajKtUfi5i3s",
-        "AIzaSyA6mqtDrwVdJePrXqFOtj8ra-VIHQeXLP0",
-        "AIzaSyDf4MjQJycKpxTXUtJRXr4TlJWrYmwNQAM",
+        "AIzaSyCuzY09xtN3g-QyzrO7rghaXuq-FnbPv_0",
+        "AIzaSyBIdSGGa2RHmI6Rx9IkzMIqjLys4iu0LRE",
+        "AIzaSyBtb1jxBeMm1YABWPhPu_tZ8xI5cSQriJA",
         "AIzaSyDdelI3OG34xUPyROt0Q4KWvNl7LyKMtrI",
     ]
     current_idx = 0
