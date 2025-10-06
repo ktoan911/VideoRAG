@@ -1,5 +1,7 @@
-num = 10
+import google.generativeai as genai
 
-print(f"num: {num}")
-num_str = f"{num:03d}"
-print(f"num_str: {num_str}")
+genai.configure(api_key="AIzaSyDhrJoRR1ljtgtaRPmk8fcOBJH0WwJh2hU")
+
+model = genai.GenerativeModel("gemini-2.5-flash")
+response = model.generate_content("Xin chào, Gemini!")
+print(response.text)

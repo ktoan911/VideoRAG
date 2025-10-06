@@ -1,6 +1,4 @@
 import json
-import re
-from collections import defaultdict
 
 import faiss
 import numpy as np
@@ -20,7 +18,10 @@ text_model = AutoModel.from_pretrained(text_model_name)
 
 index = faiss.read_index("embeddings_index.faiss")
 with open("all_images.json", "r", encoding="utf-8") as f:
-    metadata = json.load(f)
+    keyframes = json.load(f)
+
+with open("all_sumaries.json", "r", encoding="utf-8") as f:
+    summaries = json.load(f)
 
 
 def get_embedding(text):
@@ -40,7 +41,7 @@ def tokenize(text: str):
 
 
 tagger = Tagger()
-corpus = [tokenize(d["content"]) for d in metadata]
+corpus = [tokenize(d["summary"]) for d in summaries]
 bm25 = BM25Okapi(corpus)
 
 
@@ -57,30 +58,8 @@ def find_visual_scenes(query: str, k=5):
 
     D, I = index.search(query_emb, k)
     scores = [float(score) for score in D[0] if score >= 0.25]
-    results = [
-        f"{metadata[idx]['index']}-{metadata[idx]['video']}"
-        for idx in I[0][: len(scores)]
-    ]
+    results = [keyframes[idx]["video"] for idx in I[0][: len(scores)]]
     return results
-
-
-def rrf_fusion(results, k=60):
-    """
-    results: list of lists, mỗi list là danh sách kết quả theo rank
-             vd: [["d1", "d2", "d3"], ["d2", "d3", "d4"]]
-    k: hằng số điều chỉnh (default=60)
-
-    return: dict {document: score}
-    """
-
-    scores = defaultdict(float)
-
-    for res in results:  # duyệt qua từng danh sách kết quả
-        for rank, doc in enumerate(res, start=1):  # rank bắt đầu từ 1
-            scores[doc] += 1.0 / (k + rank)
-
-    # sắp xếp giảm dần theo điểm RRF
-    return dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
 
 
 def cosine_similarity(vec1, vec2):
@@ -88,7 +67,7 @@ def cosine_similarity(vec1, vec2):
     return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
 
-def bm25_search_japanese(query, bm25_top_k=25, top_k=20, alpha=0.5):
+def hybrid_search_japanese(query, bm25_top_k=25, top_k=20, alpha=0.5):
     query_embedding = get_embedding(query)
     query_tokens = tokenize(query)
     bm25_scores = bm25.get_scores(query_tokens)
@@ -100,33 +79,28 @@ def bm25_search_japanese(query, bm25_top_k=25, top_k=20, alpha=0.5):
     for idx in top_bm25_idx:
         bm25_score = bm25_scores[idx]
         dense_score = cosine_similarity(
-            query_embedding, metadata[idx]["content_embedding"]
+            query_embedding, summaries[idx]["summary_embedding"]
         )
         score = alpha * bm25_score + (1 - alpha) * dense_score
         combined.append((idx, score))
 
     final = sorted(combined, key=lambda x: x[1], reverse=True)[:top_k]
 
-    return [f"{metadata[i]['index']}-{metadata[i]['video']}" for i, _ in final]
+    return [summaries[i]["summary"] for i, _ in final]
 
 
 def rag(query):
-    clip_results = find_visual_scenes(query)
-    hybrid_results = bm25_search_japanese(query, top_k=5)
+    clip_results = list(set(find_visual_scenes(query, k=2)))
+    hybrid_results = hybrid_search_japanese(query, bm25_top_k=2, top_k=1)
 
-    fused = rrf_fusion([clip_results, hybrid_results], k=60)
-    res = []
-    for filename in fused.keys():
-        base = filename.removesuffix("-embed.json")
+    return (
+        query
+        + "\n"
+        + "クエリに関連する画像を含む動画: "
+        + ", ".join(clip_results)
+        + "\n"
+        + "クエリに関連する要約を含む動画:\n"
+        + ", ".join(hybrid_results)
+    )
 
-        # Regex: lấy số đầu và phần còn lại
-        m = re.match(r"(\d+)-(.*)", base)
-        if m:
-            num = int(m.group(1))
-            num += 1
-            num_str = f"{num:03d}"
-            name = m.group(2)  # "
 
-            res.append(name)
-
-    return res
